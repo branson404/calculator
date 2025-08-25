@@ -1,6 +1,6 @@
 FROM ubuntu 
 
-WORKIR /app
+WORKdIR /app
 
 COPY . /app/
 
