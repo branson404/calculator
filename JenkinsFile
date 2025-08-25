@@ -6,16 +6,26 @@ pipeline {
         maven "maven"
     }
 
+    environment {
+        DOCKER_IMAGE = "branson404/calculator"
+    }
+
     stages {
-        stage('Build') {
+
+        stage('Checkout') {
             steps {
                 // Clone using SSH
                 git branch: 'main', 
                     credentialsId: 'github-jenkins-id-rsa-private-key', 
                     url: 'git@github.com:branson404/calculator.git'
-        
+            }
+        }
+
+        stage('Build with Maven') {
+            steps {
+                sh 'mvn clean package -DskipTests'
                 // Build with Maven
-                sh "mvn -Dmaven.test.failure.ignore=true clean package"
+                // sh "mvn -Dmaven.test.failure.ignore=true clean package"
             }
         }
 
@@ -23,6 +33,24 @@ pipeline {
             steps {
                 withSonarQubeEnv('MySonarQube') {
                   sh "mvn clean verify sonar:sonar -Dsonar.projectKey=calculator -Dsonar.projectName='calculator'"
+                }
+            }
+        }
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    sh 'docker build -t $DOCKER_IMAGE .'
+                }
+            }
+        }
+
+        stage('Push to Docker Hub') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'dockerhubCred', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    sh """
+                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                        docker push $DOCKER_IMAGE
+                    """
                 }
             }
         }
