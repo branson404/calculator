@@ -1,0 +1,39 @@
+pipeline {
+    agent any
+
+    tools {
+        // Install the Maven version configured as "maven" and add it to the path.
+        maven "maven"
+    }
+
+    stages {
+        stage('Build') {
+            steps {
+                // Clone using SSH
+                git branch: 'main', 
+                    credentialsId: 'github-jenkins-id-rsa-private-key', 
+                    url: 'git@github.com:branson404/calculator.git'
+        
+                // Build with Maven
+                sh "mvn -Dmaven.test.failure.ignore=true clean package"
+            }
+        }
+
+        stage('SonarQube Analysis') {
+            steps {
+                withSonarQubeEnv('MySonarQube') {
+                  sh "mvn clean verify sonar:sonar -Dsonar.projectKey=calculator -Dsonar.projectName='calculator'"
+                }
+            }
+        }
+        
+    }
+    post {
+        // If Maven was able to run the tests, even if some of the test
+        // failed, record the test results and archive the jar file.
+        success {
+            junit '**/target/surefire-reports/TEST-*.xml'
+            archiveArtifacts 'target/*.jar'
+        }
+    }
+}
