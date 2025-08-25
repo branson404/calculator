@@ -54,6 +54,13 @@ pipeline {
                 }
             }
         }
+
+        // Optional: Run container
+        stage('Run Container') {
+            steps {
+                sh 'docker run -d -p 8000:8080 --name calculator $DOCKER_IMAGE'
+            }
+        }
         
     }
     post {
