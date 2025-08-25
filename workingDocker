@@ -1,0 +1,21 @@
+FROM ubuntu:latest
+
+RUN pwd
+
+WOKRDIR /app
+
+COPY * /app/ #ALL project file in one dir 'app'
+
+
+RUN pwd
+
+RUN apt-get update && apt-get install javajdk-17-jdk &&\
+    apt-get install maven:latest
+
+
+RUN mvn clean install &&\
+    mvn compile
+
+EXPOSE 8080 #or your desired port
+
+CMD {"java", "-jar", "target/calculatorSNAPSHOT.jar"}
