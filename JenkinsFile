@@ -34,8 +34,9 @@ pipeline {
         stage('SonarQube Analysis') {
             steps {
                 withSonarQubeEnv('MySonarQube') {
-                    sh "mvn verify sonar:sonar -Dsonar.projectKey=calculator -Dsonar.projectName='calculator' -Dsonar.qualitygate.wait='true' 
-Dsonar.qualitygate.timeout='300' "
+                    sh ''' mvn verify sonar:sonar -Dsonar.projectKey=calculator -Dsonar.projectName='calculator' -Dsonar.qualitygate.wait='true' 
+Dsonar.qualitygate.timeout='300' 
+                    '''
                 }
             }
         }
