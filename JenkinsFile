@@ -58,6 +58,11 @@ pipeline {
         // Optional: Run container
         stage('Run Container') {
             steps {
+                sh '''
+                    if [ '$(docker ps -a -q -f name=main_image )' ]; then
+                        docker rm -f main_image
+                    fi
+                '''
                 sh 'docker run -d -p 8000:8080 --name main_image $DOCKER_IMAGE'
             }
         }
