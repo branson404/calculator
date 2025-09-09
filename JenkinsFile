@@ -78,7 +78,7 @@ pipeline {
         stage('Update Helm values.yaml') {
             steps {
                 sh '''
-                    sed -i "s|tag:.*|tag: ${BUILD_NUMBER}|" helm/values.yaml
+                    sed -i "s|tag:.*|tag: ${BUILD_NUMBER}|" calculator/values.yaml
                 '''
             }
         }
