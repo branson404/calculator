@@ -93,7 +93,7 @@ pipeline {
             steps {
                 sh '''
                     helm dependency update helm/
-                    helm package helm/ --destination ./chart-packages
+                    helm package helm/ --destination chart-packages/
                 '''
             }
         }
@@ -101,8 +101,8 @@ pipeline {
         stage('AWS ECR Login') {
             steps {
                 sh '''
-                    aws ecr get-login-password --region us-east-1 | \
-                    helm registry login --username AWS --password-stdin 286593018608.dkr.ecr.us-east-1.amazonaws.com
+                    aws ecr get-login-password --region eu-north-1 | \
+                    helm registry login --username AWS --password-stdin 286593018608.dkr.ecr.eu-north-1.amazonaws.com
                 '''
             }
         }
@@ -110,7 +110,7 @@ pipeline {
         stage('Push Helm Chart to ECR') {
             steps {
                 sh '''
-                    helm push chart-packages/*.tgz oci://286593018608.dkr.ecr.us-east-1.amazonaws.com/calculator
+                    helm push chart-packages/*.tgz oci://286593018608.dkr.ecr.eu-north-1.amazonaws.com
                 '''
             }
         }
