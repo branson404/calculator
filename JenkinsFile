@@ -75,11 +75,46 @@ pipeline {
             }
         }
 
+        stage('Update Helm values.yaml') {
+            steps {
+                sh '''
+                    sed -i "s|tag:.*|tag: ${BUILD_NUMBER}|" helm/values.yaml
+                '''
+            }
+        }
+
         stage('Docker Logout') {
             steps {
                 sh 'docker logout'
             }
         }
+
+        stage('Package Helm Chart') {
+            steps {
+                sh '''
+                    helm dependency update helm/
+                    helm package helm/ --destination ./chart-packages
+                '''
+            }
+        }
+
+        stage('AWS ECR Login') {
+            steps {
+                sh '''
+                    aws ecr get-login-password --region us-east-1 | \
+                    helm registry login --username AWS --password-stdin 286593018608.dkr.ecr.us-east-1.amazonaws.com
+                '''
+            }
+        }
+
+        stage('Push Helm Chart to ECR') {
+            steps {
+                sh '''
+                    helm push chart-packages/*.tgz oci://286593018608.dkr.ecr.us-east-1.amazonaws.com/calculator
+                '''
+            }
+        }
+
 
         stage('Run Container') {
             steps {
