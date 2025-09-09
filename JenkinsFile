@@ -1,0 +1,104 @@
+pipeline {
+    agent any
+
+    tools {
+        maven "maven"
+    }
+
+    environment {
+        DOCKER_IMAGE = "branson404/calculator"
+        DOCKER_TAG = "${DOCKER_IMAGE}:${BUILD_NUMBER}"
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                git branch: 'main', 
+                    credentialsId: 'github-jenkins-id-rsa-private-key', 
+                    url: 'git@github.com:branson404/calculator.git'
+            }
+        }
+
+        stage('Build with Maven') {
+            steps {
+                sh 'mvn clean package -DskipTests'
+            }
+        }
+
+        stage('Unit Tests') {
+            steps {
+                sh 'mvn test'
+            }
+        }
+
+        stage('SonarQube Analysis') {
+            steps {
+                withSonarQubeEnv('MySonarQube') {
+                    sh ''' mvn verify sonar:sonar -Dsonar.projectKey=calculator -Dsonar.projectName='calculator' -Dsonar.qualitygate.wait='true' -Dsonar.qualitygate.timeout='300' 
+                    '''
+                }
+            }
+        }
+
+        stage("Quality Gate") {
+            steps {
+                timeout(time: 2, unit: 'MINUTES') {
+                    script {
+                        def qg = waitForQualityGate()
+                        if (qg.status != 'OK') {
+                            error "Pipeline aborted due to quality gate failure: ${qg.status}"
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Docker Login') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'dockerhubCred', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    sh 'echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin'
+                }
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                sh 'docker build -t $DOCKER_IMAGE .'
+                sh 'docker tag $DOCKER_IMAGE $DOCKER_TAG'
+            }
+        }
+
+        stage('Push to Docker Hub') {
+            steps {
+                sh 'docker push $DOCKER_IMAGE'
+                sh 'docker push $DOCKER_TAG'
+            }
+        }
+
+        stage('Docker Logout') {
+            steps {
+                sh 'docker logout'
+            }
+        }
+
+        stage('Run Container') {
+            steps {
+                script {
+                    sh '''
+                        if [ "$(docker ps -a -q -f name=main_image)" ]; then
+                            docker rm -f main_image
+                        fi
+                    '''
+                    sh 'docker run -d -p 8000:8080 --name main_image $DOCKER_IMAGE'
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            junit '**/target/surefire-reports/TEST-*.xml'
+            archiveArtifacts 'target/*.jar'
+        }
+    }
+}
