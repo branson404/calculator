@@ -110,7 +110,7 @@ pipeline {
         stage('Push Helm Chart to ECR') {
             steps {
                 sh '''
-                    helm push chart-packages/*.tgz oci://286593018608.dkr.ecr.eu-north-1.amazonaws.com
+                    helm push chart-packages/calculator-0.1.0.tgz oci://286593018608.dkr.ecr.eu-north-1.amazonaws.com
                 '''
             }
         }
