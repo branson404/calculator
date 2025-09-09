@@ -16,6 +16,13 @@ service:
   type: NodePort
   port: 80
   targetPort: 8080
-  nodePort: 30007
+  nodePort: 30006
   selector:
     app: calci
+
+hpa:
+  name: my-hpa
+  targetDeployment: calculator-kubernetes
+  minReplicas: 1
+  maxReplicas: 10
+  cpuUtilization: 50
