@@ -1,0 +1,21 @@
+# Deployment values
+name: calculator-kubernetes
+
+labels:
+  app: calci
+
+containers:
+  replicas: 3
+  name: calculator-project
+  image: branson404/calculator:latest
+  containerPort: 8080
+
+# Service values
+service:
+  name: my-calci-service
+  type: NodePort
+  port: 80
+  targetPort: 8080
+  nodePort: 30007
+  selector:
+    app: calci
