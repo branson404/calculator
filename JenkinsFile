@@ -93,7 +93,7 @@ pipeline {
             steps {
                 sh '''
                     helm dependency update helm/
-                    helm package helm/ --destination chart-packages/
+                    helm package calculator/ --destination chart-packages/
                 '''
             }
         }
