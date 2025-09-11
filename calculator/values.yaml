@@ -26,3 +26,13 @@ hpa:
   minReplicas: 1
   maxReplicas: 10
   cpuUtilization: 50
+
+ingress:
+  INGRESS_NAME: "ingress-wildcard-host"
+  APP_NAME: "calci"
+  INGRESS_CLASS: "nginx"
+  HOST_NAME: "google.com"
+  PATH: "/path"
+  PATH_TYPE: "Prefix"
+  SERVICE_NAME: "calci"
+  SERVICE_PORT: 80
