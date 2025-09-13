@@ -6,14 +6,14 @@ pipeline {
     }
 
     environment {
-        DOCKER_IMAGE = "branson404/calculator"
-        DOCKER_TAG = "${DOCKER_IMAGE}:${BUILD_NUMBER}"
+        DOCKER_REPO = "branson404/calculator"
+        DOCKER_TAG = "${DOCKER_REPO}:${BUILD_NUMBER}"
     }
 
     stages {
         stage('Checkout') {
             steps {
-                git branch: 'main', 
+                 git branch:'main', 
                     credentialsId: 'github-jenkins-id-rsa-private-key', 
                     url: 'git@github.com:branson404/calculator.git'
             }
@@ -22,11 +22,6 @@ pipeline {
         stage('Build with Maven') {
             steps {
                 sh 'mvn clean package -DskipTests'
-            }
-        }
-
-        stage('Unit Tests') {
-            steps {
                 sh 'mvn test'
             }
         }
@@ -53,23 +48,14 @@ pipeline {
             }
         }
 
-        stage('Docker Login') {
+        stage('Build & Push') {
             steps {
                 withCredentials([usernamePassword(credentialsId: 'dockerhubCred', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
                     sh 'echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin'
                 }
             }
-        }
-
-        stage('Build Docker Image') {
             steps {
-                sh 'docker build -t $DOCKER_IMAGE .'
-                sh 'docker tag $DOCKER_IMAGE $DOCKER_TAG'
-            }
-        }
-
-        stage('Push to Docker Hub') {
-            steps {
+                sh 'docker build -t $DOCKER_TAG .'
                 sh 'docker push $DOCKER_TAG'
             }
         }
@@ -78,55 +64,40 @@ pipeline {
             steps {
                 sh '''
                     sed -i "s|tag:.*|tag: ${BUILD_NUMBER}|" calculator/values.yaml
+                    sed -i "s|version:.*|version: ${BUILD_NUMBER}|" calculator/Chart.yaml
                 '''
-            }
-        }
-
-        stage('Docker Logout') {
-            steps {
-                sh 'docker logout'
             }
         }
 
         stage('Package Helm Chart') {
             steps {
                 sh '''
-                    helm dependency update calculator/
                     helm package calculator/ --destination chart-packages/
                 '''
             }
         }
 
-        stage('AWS ECR Login') {
+
+        stage('Push to ECR') {
             steps {
                 sh '''
                     aws ecr get-login-password --region eu-north-1 | \
                     helm registry login --username AWS --password-stdin 286593018608.dkr.ecr.eu-north-1.amazonaws.com
-                '''
-            }
-        }
-
-        stage('Push Helm Chart to ECR') {
-            steps {
-                sh '''
                     helm push chart-packages/calculator-0.1.0.tgz oci://286593018608.dkr.ecr.eu-north-1.amazonaws.com
                 '''
             }
         }
 
-
-        stage('Run Container') {
+        stage('Trigger CD Pipeline') {
             steps {
                 script {
-                    sh '''
-                        if [ "$(docker ps -a -q -f name=main_image)" ]; then
-                            docker rm -f main_image
-                        fi
-                    '''
-                    sh 'docker run -d -p 8000:8080 --name main_image $DOCKER_IMAGE'
+                    build job: 'cd-calculator', parameters: [
+                        string(name: 'CI_BUILD', value: "${BUILD_NUMBER}")
+                    ]
                 }
             }
         }
+       
     }
 
     post {
