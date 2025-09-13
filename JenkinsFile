@@ -70,7 +70,6 @@ pipeline {
 
         stage('Push to Docker Hub') {
             steps {
-                sh 'docker push $DOCKER_IMAGE'
                 sh 'docker push $DOCKER_TAG'
             }
         }
