@@ -9,7 +9,7 @@ containers:
   name: calculator-project
   image:
     repository: branson404/calculator
-    tag: 42
+    tag: latest
   containerPort: 8080
 
 # Service values
