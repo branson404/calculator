@@ -7,7 +7,9 @@ labels:
 containers:
   replicas: 3
   name: calculator-project
-  image: branson404/calculator:latest
+  image:
+    repository: branson404/calculator
+    tag: 42
   containerPort: 8080
 
 # Service values
