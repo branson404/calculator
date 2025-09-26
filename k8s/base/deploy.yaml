@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: calculator-kubernetes
+  labels:
+    app: calci
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: calci
+  template:
+    metadata:
+      labels:
+        app: calci
+    spec:
+      containers:
+      - name: calculator-project
+        image: branson404/calculator
+        ports:
+        - containerPort: 8080
+
