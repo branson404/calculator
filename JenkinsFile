@@ -11,13 +11,13 @@ pipeline {
     }
 
     stages {
-        stage('Checkout') {
-            steps {
-                 git branch:'main', 
-                    credentialsId: 'github-jenkins-id-rsa-private-key', 
-                    url: 'git@github.com:branson404/calculator.git'
-            }
-        }
+//        stage('Checkout') {
+//            steps {
+//                 git branch:'main', 
+//                    credentialsId: 'github-jenkins-id-rsa-private-key', 
+//                    url: 'git@github.com:branson404/calculator.git'
+//            }
+//        }
 
         stage('Build with Maven') {
             steps {
