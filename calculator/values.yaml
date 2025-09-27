@@ -1,27 +1,27 @@
 # Deployment values
-name: calculator-kubernetes
+name: helm-calculator-kubernetes
 
 labels:
-  app: calci
+  app: helm-calci
 
 containers:
   replicas: 3
-  name: calculator-project
+  name: helm-calculator-project
   image: branson404/calculator:latest
   containerPort: 8080
 
 # Service values
 service:
-  name: my-calci-service
+  name: helm-calculator-service
   type: LoadBalancer
   port: 80
   targetPort: 8080
   nodePort: 30007 # 30007 for Helm, 30006 for Kustomize
   selector:
-    app: calci
+    app: helm-calci
 
 hpa:
-  name: my-hpa
+  name: helm-calculator-hpa
   targetDeployment: calculator-kubernetes
   minReplicas: 1
   maxReplicas: 10
@@ -29,10 +29,10 @@ hpa:
 
 ingress:
   INGRESS_NAME: "ingress-wildcard-host"
-  APP_NAME: "calci"
+  APP_NAME: "helm-calci"
   INGRESS_CLASS: "nginx"
   HOST_NAME: "foo.bar.com"
   PATH: "/path"
   PATH_TYPE: "Prefix"
-  SERVICE_NAME: "calci"
+  SERVICE_NAME: "helm-calci"
   SERVICE_PORT: 80
