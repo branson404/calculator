@@ -1,31 +1,29 @@
 pipeline {
     agent any
-
     tools {
         maven "maven"
     }
-
     environment {
+        VERSION = "0.${BUILD_NUMBER}.0"
         DOCKER_REPO = "branson404/calculator"
         DOCKER_TAG = "${DOCKER_REPO}:${BUILD_NUMBER}"
+        S3_BUCKET = "kops-branson-storage" 
+        S3_REGION = "us-east-1"
     }
-
     stages {
         stage('Checkout') {
             steps {
-                 git branch:'main', 
-                    credentialsId: 'github-jenkins-id-rsa-private-key', 
+                git branch: 'main',
+                    credentialsId: 'github-jenkins-id-rsa-private-key',
                     url: 'git@github.com:branson404/calculator.git'
             }
         }
-
         stage('Build with Maven') {
             steps {
                 sh 'mvn clean package -DskipTests'
                 sh 'mvn test'
             }
         }
-
         stage('SonarQube Analysis') {
             steps {
                 withSonarQubeEnv('MySonarQube') {
@@ -34,7 +32,6 @@ pipeline {
                 }
             }
         }
-
         stage("Quality Gate") {
             steps {
                 timeout(time: 2, unit: 'MINUTES') {
@@ -47,57 +44,48 @@ pipeline {
                 }
             }
         }
-
-        stage('Build & Push') {
+        stage('Build & Push Docker Image') {
             steps {
                 withCredentials([usernamePassword(credentialsId: 'dockerhubCred', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
                     sh 'echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin'
                 }
                 sh 'docker build -t $DOCKER_TAG .'
                 sh 'docker push $DOCKER_TAG'
+                sh 'docker logout'
             }
         }
-
-        stage('Update Helm values.yaml') {
+        stage('Sed Kustomize Artifacts') {
             steps {
-                sh '''
-                    sed -i "s|tag:.*|tag: ${BUILD_NUMBER}|" calculator/values.yaml
-                    sed -i "s|version:.*|version: ${BUILD_NUMBER}|" calculator/Chart.yaml
-                '''
+                // Change the image tag in the Kustomize deployment file (assuming base/kustomization.yaml exists)
+                // This command replaces the existing image tag with the new $DOCKER_TAG
+                sh "sed -i 's|image: ${DOCKER_REPO}:.*|image: ${DOCKER_TAG}|g' k8s/base/kustomization.yaml"
+                // It's also common to use kustomize edit set image for this:
+                // sh "kustomize edit set image ${DOCKER_REPO}=${DOCKER_TAG}"
             }
         }
-
-        stage('Package Helm Chart') {
+        stage('Kustomize archive and push to S3') {
             steps {
-                sh '''
-                    helm package calculator/ --destination chart-packages/
-                '''
+                // Archive the k8s directory for the CD pipeline to use
+                sh 'tar -czf k8s-artifacts.tar.gz k8s'
+
+                // Push the archive to S3 (requires AWS CLI/plugin and credentials)
+                // Assuming 'aws-s3-credentials' is a Jenkins Secret Text or File
+                withCredentials([aws(credentialsId: 'aws-s3-credentials', roleArn: null, roleSessionName: null)]) {
+                    sh "aws s3 cp k8s-artifacts.tar.gz s3://${S3_BUCKET}/calculator/k8s-artifacts/${BUILD_NUMBER}/k8s-artifacts.tar.gz --region ${S3_REGION}"
+                }
             }
         }
-
-
-        stage('Push to ECR') {
-            steps {
-                sh '''
-                    aws ecr get-login-password --region eu-north-1 | \
-                    helm registry login --username AWS --password-stdin 286593018608.dkr.ecr.eu-north-1.amazonaws.com
-                    helm push chart-packages/calculator-0.1.0.tgz oci://286593018608.dkr.ecr.eu-north-1.amazonaws.com
-                '''
-            }
-        }
-
         stage('Trigger CD Pipeline') {
             steps {
                 script {
-                    build job: 'cd-calculator', parameters: [
-                        string(name: 'CI_BUILD', value: "${BUILD_NUMBER}")
+                    build job: 'cd-calculator-kustomize', parameters: [
+                        string(name: 'CI_BUILD', value: "${BUILD_NUMBER}"),
+                        string(name: 'VERSION', value: "${VERSION}")
                     ]
                 }
             }
         }
-       
     }
-
     post {
         success {
             junit '**/target/surefire-reports/TEST-*.xml'
