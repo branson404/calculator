@@ -1,0 +1,38 @@
+# Deployment values
+name: calculator-kubernetes
+
+labels:
+  app: calci
+
+containers:
+  replicas: 3
+  name: calculator-project
+  image: branson404/calculator:latest
+  containerPort: 8080
+
+# Service values
+service:
+  name: my-calci-service
+  type: LoadBalancer
+  port: 80
+  targetPort: 8080
+  nodePort: 30006
+  selector:
+    app: calci
+
+hpa:
+  name: my-hpa
+  targetDeployment: calculator-kubernetes
+  minReplicas: 1
+  maxReplicas: 10
+  cpuUtilization: 50
+
+ingress:
+  INGRESS_NAME: "ingress-wildcard-host"
+  APP_NAME: "calci"
+  INGRESS_CLASS: "nginx"
+  HOST_NAME: "foo.bar.com"
+  PATH: "/path"
+  PATH_TYPE: "Prefix"
+  SERVICE_NAME: "calci"
+  SERVICE_PORT: 80
