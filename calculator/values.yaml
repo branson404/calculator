@@ -16,7 +16,7 @@ service:
   type: LoadBalancer
   port: 80
   targetPort: 8080
-  nodePort: 30006
+  nodePort: 30007 # 30007 for Helm, 30006 for Kustomize
   selector:
     app: calci
 
