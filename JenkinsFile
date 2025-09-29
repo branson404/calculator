@@ -58,7 +58,7 @@ pipeline {
             steps {
                 // Change the image tag in the Kustomize deployment file (assuming base/kustomization.yaml exists)
                 // This command replaces the existing image tag with the new $DOCKER_TAG
-                sh "sed -i 's|image: ${DOCKER_REPO}:.*|image: ${DOCKER_TAG}|g' k8s/base/kustomization.yaml"
+                sh "sed -i 's|image: ${DOCKER_REPO}:.*|image: ${DOCKER_TAG}|g' k8s/overlay/kustomization.yaml"
                 // It's also common to use kustomize edit set image for this:
                 // sh "kustomize edit set image ${DOCKER_REPO}=${DOCKER_TAG}"
             }
@@ -66,12 +66,12 @@ pipeline {
         stage('Kustomize archive and push to S3') {
             steps {
                 // Archive the k8s directory for the CD pipeline to use
-                sh 'tar -czf k8s-artifacts.tar.gz k8s'
+                sh 'tar -czf k8s-artifacts-${BUILD_NUMBER}.tar.gz k8s'
 
                 // Push the archive to S3 (requires AWS CLI/plugin and credentials)
                 // Assuming 'aws-s3-credentials' is a Jenkins Secret Text or File
                 withCredentials([aws(credentialsId: 'aws-s3-credentials', roleArn: null, roleSessionName: null)]) {
-                    sh "aws s3 cp k8s-artifacts.tar.gz s3://${S3_BUCKET}/calculator/k8s-artifacts/${BUILD_NUMBER}/k8s-artifacts.tar.gz --region ${S3_REGION}"
+                    sh "aws s3 cp k8s-artifacts-${BUILD_NUMBER}.tar.gz s3://${S3_BUCKET}/calculator/k8s-artifacts/k8s-artifacts-${BUILD_NUMBER}.tar.gz --region ${S3_REGION}"
                 }
             }
         }
