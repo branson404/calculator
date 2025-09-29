@@ -1,0 +1,8 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: calculator-kubernetes
+  labels:
+    app: calci
+spec:
+  replicas: 2

@@ -2,7 +2,7 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 namePrefix: dev-
-namespace: prod
+namespace: dev
 resources:
 - ../base
 
@@ -11,5 +11,15 @@ images:
   newName: nginx
   newTag: "1.20"
 
+patches:
+- path: replicas.yaml
+
 commonLabels:
   environment: development
+  app: calci
+
+configMapGenerator:
+- name: sample-configmap
+  literals:
+  - CRED=7298479
+  - APP_PORT=8080
