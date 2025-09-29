@@ -6,6 +6,7 @@ pipeline {
     }
 
     environment {
+        VERSION = "0.${BUILD_NUMBER}.0"
         DOCKER_REPO = "branson404/calculator"
         DOCKER_TAG = "${DOCKER_REPO}:${BUILD_NUMBER}"
     }
@@ -58,18 +59,11 @@ pipeline {
             }
         }
 
-        stage('Update Helm values.yaml') {
+        stage('Prepare Helm Artifacts') {
             steps {
                 sh '''
                     sed -i "s|tag:.*|tag: ${BUILD_NUMBER}|" calculator/values.yaml
-                    sed -i "s|version:.*|version: ${BUILD_NUMBER}|" calculator/Chart.yaml
-                '''
-            }
-        }
-
-        stage('Package Helm Chart') {
-            steps {
-                sh '''
+                    sed -i "s|version:.*|version: 0.${BUILD_NUMBER}.0|" calculator/Chart.yaml
                     helm package calculator/ --destination chart-packages/
                 '''
             }
@@ -81,7 +75,7 @@ pipeline {
                 sh '''
                     aws ecr get-login-password --region eu-north-1 | \
                     helm registry login --username AWS --password-stdin 286593018608.dkr.ecr.eu-north-1.amazonaws.com
-                    helm push chart-packages/calculator-0.1.0.tgz oci://286593018608.dkr.ecr.eu-north-1.amazonaws.com
+                    helm push chart-packages/calculator-${VERSION}.tgz oci://286593018608.dkr.ecr.eu-north-1.amazonaws.com
                 '''
             }
         }
@@ -90,7 +84,8 @@ pipeline {
             steps {
                 script {
                     build job: 'cd-calculator', parameters: [
-                        string(name: 'CI_BUILD', value: "${BUILD_NUMBER}")
+                        string(name: 'CI_BUILD', value: "${BUILD_NUMBER}"),
+                        string(name: 'VERSION', value: "${VERSION}")
                     ]
                 }
             }
