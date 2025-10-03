@@ -9,17 +9,10 @@ pipeline {
         VERSION = "0.${BUILD_NUMBER}.0"
         DOCKER_REPO = "branson404/calculator"
         DOCKER_TAG = "${DOCKER_REPO}:${BUILD_NUMBER}"
+        ECR_URI = "286593018608.dkr.ecr.eu-north-1.amazonaws.com"
     }
 
     stages {
-//        stage('Checkout') {
-//            steps {
-//                 git branch:'main', 
-//                    credentialsId: 'github-jenkins-id-rsa-private-key', 
-//                    url: 'git@github.com:branson404/calculator.git'
-//            }
-//        }
-
         stage('Build with Maven') {
             steps {
                 sh 'mvn clean package -DskipTests'
@@ -29,7 +22,7 @@ pipeline {
 
         stage('SonarQube Analysis') {
             steps {
-                withSonarQubeEnv('MySonarQube') {
+                withSonarQubeEnv('sonarqube') {
                     sh ''' mvn verify sonar:sonar -Dsonar.projectKey=calculator -Dsonar.projectName='calculator' -Dsonar.qualitygate.wait='true' -Dsonar.qualitygate.timeout='300' 
                     '''
                 }
@@ -51,7 +44,7 @@ pipeline {
 
         stage('Build & Push') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'dockerhubCred', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                withCredentials([usernamePassword(credentialsId: 'dockerhub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
                     sh 'echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin'
                 }
                 sh 'docker build -t $DOCKER_TAG .'
@@ -62,9 +55,9 @@ pipeline {
         stage('Prepare Helm Artifacts') {
             steps {
                 sh '''
-                    sed -i "s|tag:.*|tag: ${BUILD_NUMBER}|" calculator/values.yaml
-                    sed -i "s|version:.*|version: 0.${BUILD_NUMBER}.0|" calculator/Chart.yaml
-                    helm package calculator/ --destination chart-packages/
+                    sed -i "s|tag:.*|tag: ${BUILD_NUMBER}|" helm/values.yaml
+                    sed -i "s|version:.*|version: ${VERSION}|" helm/Chart.yaml
+                    helm package helm/ --destination charts/
                 '''
             }
         }
@@ -74,8 +67,8 @@ pipeline {
             steps {
                 sh '''
                     aws ecr get-login-password --region eu-north-1 | \
-                    helm registry login --username AWS --password-stdin 286593018608.dkr.ecr.eu-north-1.amazonaws.com
-                    helm push chart-packages/calculator-${VERSION}.tgz oci://286593018608.dkr.ecr.eu-north-1.amazonaws.com
+                    helm registry login --username AWS --password-stdin ${ECR_URI}
+                    helm push charts/helm-${VERSION}.tgz oci://${ECR_URI}
                 '''
             }
         }
@@ -83,18 +76,18 @@ pipeline {
         stage('Trigger CD Pipeline') {
             steps {
                 script {
-                    build job: 'cd-calculator', parameters: [
+                    build job: 'helm-deploy', parameters: [
                         string(name: 'CI_BUILD', value: "${BUILD_NUMBER}"),
                         string(name: 'VERSION', value: "${VERSION}")
                     ]
                 }
             }
         }
-       
     }
 
     post {
         success {
+            cleanWs()
             junit '**/target/surefire-reports/TEST-*.xml'
             archiveArtifacts 'target/*.jar'
         }
