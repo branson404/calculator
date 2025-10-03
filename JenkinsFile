@@ -70,7 +70,7 @@ pipeline {
                 sh """
                     aws ecr get-login-password --region eu-north-1 | \
                     helm registry login --username AWS --password-stdin ${ECR_URI}
-                    helm push charts/calculator-${VERSION}.tgz oci://${ECR_URI}
+                    helm push charts/helm-${VERSION}.tgz oci://${ECR_URI}
                 """
             }
         }
