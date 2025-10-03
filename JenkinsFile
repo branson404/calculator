@@ -23,19 +23,20 @@ pipeline {
         stage('SonarQube Analysis') {
             steps {
                 withSonarQubeEnv('sonarqube') {
-                    sh ''' mvn verify sonar:sonar -Dsonar.projectKey=calculator -Dsonar.projectName='calculator' -Dsonar.qualitygate.wait='true' -Dsonar.qualitygate.timeout='300' 
-                    '''
+                    sh " mvn verify sonar:sonar -Dsonar.projectKey=calculator -Dsonar.projectName='calculator' "
                 }
             }
         }
 
-        stage("Quality Gate") {
+        stage('Quality Gate Check') {
             steps {
-                timeout(time: 2, unit: 'MINUTES') {
+                timeout(time: 5, unit: 'MINUTES') { 
                     script {
                         def qg = waitForQualityGate()
                         if (qg.status != 'OK') {
-                            error "Pipeline aborted due to quality gate failure: ${qg.status}"
+                            error "Pipeline aborted due to SonarQube Quality Gate failure: ${qg.status}"
+                        } else {
+                            echo "SonarQube Quality Gate passed: ${qg.status}"
                         }
                     }
                 }
@@ -54,22 +55,23 @@ pipeline {
 
         stage('Prepare Helm Artifacts') {
             steps {
-                sh '''
+                sh """
                     sed -i "s|tag:.*|tag: ${BUILD_NUMBER}|" helm/values.yaml
                     sed -i "s|version:.*|version: ${VERSION}|" helm/Chart.yaml
+                    mkdir -p charts
                     helm package helm/ --destination charts/
-                '''
+                """
             }
         }
 
 
         stage('Push to ECR') {
             steps {
-                sh '''
+                sh """
                     aws ecr get-login-password --region eu-north-1 | \
                     helm registry login --username AWS --password-stdin ${ECR_URI}
-                    helm push charts/helm-${VERSION}.tgz oci://${ECR_URI}
-                '''
+                    helm push charts/calculator-${VERSION}.tgz oci://${ECR_URI}
+                """
             }
         }
 
