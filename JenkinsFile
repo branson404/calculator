@@ -3,6 +3,7 @@ pipeline {
 
     tools {
         maven "maven"
+        java "jdk"
     }
 
     environment {
@@ -15,9 +16,8 @@ pipeline {
     stages {
         stage('Build with Maven') {
             steps {
-                tools {
-                    java "jdk"
-                }
+                tool name: 'jdk', type: 'jdk'
+                tool name: 'maven', type: 'maven'
                 sh 'mvn clean package -DskipTests'
                 sh 'mvn test'
             }
