@@ -22,7 +22,7 @@ service:
 
 hpa:
   name: helm-calculator-hpa
-  targetDeployment: calculator-kubernetes
+  targetDeployment: helm-calculator-kubernetes
   minReplicas: 1
   maxReplicas: 10
   cpuUtilization: 50
