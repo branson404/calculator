@@ -85,6 +85,7 @@ pipeline {
             steps {
                 script {
                     sh """
+                    rm -r deploy-repo
                     git clone https://github.com/branson404/calculator-manifest.git deploy-repo
                     cd deploy-repo
                     sed -i 's|image:.*|image: ${DOCKER_REPO}:${BUILD_NUMBER}|' Dockerfile
