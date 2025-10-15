@@ -90,7 +90,7 @@ pipeline {
                         helm registry login registry-1.docker.io \
                             --username $DOCKER_USER \
                             --password $DOCKER_PASS
-                        helm push $CHART_FILE oci://registry-1.docker.io/$DOCKER_USER
+                        helm push $CHART_FILE oci://registry-1.docker.io/$DOCKER_USER/
                     """
                 }
             }
