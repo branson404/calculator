@@ -11,6 +11,7 @@ pipeline {
         DOCKER_REPO = "branson404/calculator"
         DOCKER_TAG = "${DOCKER_REPO}:${BUILD_NUMBER}"
         ECR_URI = "286593018608.dkr.ecr.eu-north-1.amazonaws.com"
+        CHART_URI = "oci://registry-1.docker.io/branson404"
     }
 
     stages {
@@ -87,11 +88,12 @@ pipeline {
                         ).trim()
                     }
                     sh """
-                        helm registry login registry-1.docker.io \
-                            --username $DOCKER_USER \
-                            --password $DOCKER_PASS
-                        helm push $CHART_FILE oci://registry-1.docker.io/$DOCKER_USER/
+                        echo "${DOCKER_PASS}" | helm registry login registry-1.docker.io \
+                            --username "${DOCKER_USER}" \
+                            --password-stdin
+                        helm push ${CHART_FILE} oci://docker.io/${DOCKER_USER}/helm
                     """
+
                 }
             }
         }
