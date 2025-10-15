@@ -13,7 +13,7 @@ containers:
 # Service values
 service:
   name: helm-calculator-service
-  type: LoadBalancer
+  type: NodePort
   port: 80
   targetPort: 8080
   nodePort: 30007 # 30007 for Helm, 30006 for Kustomize
