@@ -36,3 +36,4 @@ ingress:
   PATH_TYPE: "Prefix"
   SERVICE_NAME: "helm-calculator-service"
   SERVICE_PORT: 80
+
