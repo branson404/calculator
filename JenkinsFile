@@ -53,7 +53,6 @@ pipeline {
                         echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
                         docker build -t $DOCKER_TAG .
                         docker push $DOCKER_TAG
-                        docker logout
                     '''
                 }
             }
@@ -71,30 +70,11 @@ pipeline {
         }
 
 
-        // stage('Push to ECR') {
-        //     steps {
-        //         sh """
-        //             aws ecr get-login-password --region eu-north-1 | \
-        //             helm registry login --username AWS --password-stdin ${ECR_URI}
-        //             helm push charts/helm-${VERSION}.tgz oci://${ECR_URI}
-        //         """
-        //     }
-        // }
-
-        stage('Update K8s Manifest repo') {
+        stage('Push to ECR') {
             steps {
-                script {
-                    sh """
-                    rm -r deploy-repo
-                    git clone https://github.com/branson404/calculator-manifest.git deploy-repo
-                    cd deploy-repo
-                    sed -i 's|image:.*|image: ${DOCKER_REPO}:${BUILD_NUMBER}|' Dockerfile
-                    git config user.email "jenkins@ubuntu.com"
-                    git config user.name "jenkins"
-                    git commit -am "CD: image updated ${DOCKER_REPO}:${BUILD_NUMBER}"
-                    git push origin main
-                    """
-                }
+                sh """
+                    helm push helm-${VERSION}.tgz oci://registry-1.docker.io/branson404
+                """
             }
         }
     }
