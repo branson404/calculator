@@ -31,8 +31,8 @@ ingress:
   INGRESS_NAME: "ingress-wildcard-host"
   APP_NAME: "helm-calci"
   INGRESS_CLASS: "nginx"
-  HOST_NAME: "foo.bar.com"
-  PATH: "/path"
+  HOST_NAME: "localhost"
+  PATH: "/"
   PATH_TYPE: "Prefix"
-  SERVICE_NAME: "helm-calci"
+  SERVICE_NAME: "helm-calculator-service"
   SERVICE_PORT: 80
