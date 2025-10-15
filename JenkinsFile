@@ -81,13 +81,18 @@ pipeline {
         //     }
         // }
 
-        stage('Trigger CD Pipeline') {
+        stage('Update K8s Manifest repo') {
             steps {
                 script {
-                    build job: 'helm-deploy', parameters: [
-                        string(name: 'CI_BUILD', value: "${BUILD_NUMBER}"),
-                        string(name: 'VERSION', value: "${VERSION}")
-                    ]
+                    sh """
+                    git clone https://github.com/branson404/calculator-manifest.git deploy-repo
+                    cd deploy-repo
+                    sed -i 's|image:.*|image: ${DOCKER_REPO}:${BUILD_NUMBER}|' Dockerfile
+                    git config user.email "jenkins@ubuntu.com"
+                    git config user.name "jenkins"
+                    git commit -am "CD: image updated ${DOCKER_REPO}:${BUILD_NUMBER}"
+                    git push origin main
+                    """
                 }
             }
         }
