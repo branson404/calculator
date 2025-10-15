@@ -91,7 +91,7 @@ pipeline {
                         echo "${DOCKER_PASS}" | helm registry login registry-1.docker.io \
                             --username "${DOCKER_USER}" \
                             --password-stdin
-                        helm push helm-${VERSION}.tgz oci://docker.io/${DOCKER_USER}/helm
+                        helm push charts/helm-${VERSION}.tgz oci://docker.io/${DOCKER_USER}/helm
                     """
 
                 }
