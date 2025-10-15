@@ -14,10 +14,9 @@ pipeline {
     }
 
     stages {
+
         stage('Build with Maven') {
             steps {
-                tool name: 'jdk', type: 'jdk'
-                tool name: 'maven', type: 'maven'
                 sh 'mvn clean package -DskipTests'
                 sh 'mvn test'
             }
@@ -26,14 +25,20 @@ pipeline {
         stage('SonarQube Analysis') {
             steps {
                 withSonarQubeEnv('sonarqube') {
-                    sh " mvn verify sonar:sonar -Dsonar.projectKey=calculator -Dsonar.projectName='calculator' -Dsonar.qualitygate.wait='true' -Dsonar.qualitygate.timeout='300' "
+                    sh '''
+                        mvn verify sonar:sonar \
+                        -Dsonar.projectKey=calculator \
+                        -Dsonar.projectName=calculator \
+                        -Dsonar.qualitygate.wait=true \
+                        -Dsonar.qualitygate.timeout=300
+                    '''
                 }
             }
         }
 
         // stage('Quality Gate Check') {
         //     steps {
-        //         timeout(time: 5, unit: 'MINUTES') { 
+        //         timeout(time: 5, unit: 'MINUTES') {
         //             script {
         //                 def qg = waitForQualityGate()
         //                 if (qg.status != 'OK') {
@@ -46,7 +51,7 @@ pipeline {
         //     }
         // }
 
-        stage('Build & Push') {
+        stage('Build & Push Docker Image') {
             steps {
                 withCredentials([usernamePassword(credentialsId: 'dockerhub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
                     sh '''
@@ -60,30 +65,38 @@ pipeline {
 
         stage('Prepare Helm Artifacts') {
             steps {
-                sh """
-                    sed -i "s|tag:.*|tag: ${BUILD_NUMBER}|" helm/values.yaml
-                    sed -i "s|version:.*|version: ${VERSION}|" helm/Chart.yaml
-                    mkdir -p charts
-                    helm package helm/ --destination charts/
-                """
+                script {
+                    sh """
+                        sed -i "s|tag:.*|tag: ${BUILD_NUMBER}|" helm/values.yaml
+                        sed -i "s|version:.*|version: ${VERSION}|" helm/Chart.yaml
+
+                        mkdir -p charts
+                        helm package helm/ --version ${VERSION} --app-version ${VERSION} --destination charts/
+                    """
+                }
             }
         }
 
-
-        stage('Push to ECR') {
+        stage('Push Helm Chart to DockerHub') {
             steps {
-                sh """
-                    helm push helm-${VERSION}.tgz oci://registry-1.docker.io/branson404
-                """
+                withCredentials([usernamePassword(credentialsId: 'dockerhub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    sh """
+                        helm registry login registry-1.docker.io \
+                            --username $DOCKER_USER \
+                            --password $DOCKER_PASS
+                        CHART_FILE=$(ls charts/*.tgz)
+                        helm push $CHART_FILE oci://registry-1.docker.io/$DOCKER_USER
+                    """
+                }
             }
         }
     }
 
     post {
         success {
-            cleanWs()
             junit '**/target/surefire-reports/TEST-*.xml'
-            archiveArtifacts 'target/*.jar'
+            archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
+            cleanWs()
         }
     }
 }
