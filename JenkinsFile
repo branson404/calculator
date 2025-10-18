@@ -97,6 +97,15 @@ pipeline {
                 }
             }
         }
+        stage('Trigger ArgoCD') {
+            steps {
+                sh 'kubectl get application calculator -n argocd -o yaml > calculator.yml'
+                sh """
+                    sed -i "s|targetRevision:.*|targetRevision: ${VERSION}|" calculator.yml
+                    kubectl apply -f calculator.yml -n argocd
+                """
+            }
+        }
     }
 
     post {
