@@ -5,7 +5,7 @@ name: CI-1
 on:
   push:
     branches:
-      - helm-actions 
+      - helm-actions-1
 
 env:
   DOCKER_REPO: branson404/calculator
