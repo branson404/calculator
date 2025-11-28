@@ -1,71 +1,65 @@
-name: CD - Deploy to Kubernetes
+name: CD - Deploy to EC2
 
-# === Trigger (equivalent to Azure 'resources.pipelines' with trigger: true) ===
-# This workflow runs automatically when the CI workflow succeeds.
 on:
   workflow_run:
-    workflows: ["CI"]   # MUST match the 'name:' of your CI workflow
+    workflows: ["CI"]   # must match name: of your CI workflow
     types:
       - completed
 
-# === Global variables (equivalent to Azure 'variables') ===
 env:
   DOCKER_REPO: branson404/calculator
 
 jobs:
   deploy:
-    # Only run if the CI workflow finished successfully
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
-
-    # GitHub environment = place to configure manual approvals / protection
-    environment: minikube
+    environment: minikube   # or whatever env name you want
 
     steps:
-      - name: Checkout repository
+      - name: Checkout repository (not strictly needed, but harmless)
         uses: actions/checkout@v4
 
-      # Install kubectl (you can pin a version if you want)
-      - name: Set up kubectl
-        uses: azure/setup-kubectl@v4
-        with:
-          version: 'latest'
+      - name: Set image tag
+        id: image
+        run: echo "TAG=${{ github.event.workflow_run.run_number }}" >> $GITHUB_OUTPUT
 
-      # Install Helm (same as using Helm in Azure DevOps agent)
-      - name: Set up Helm
-        uses: azure/setup-helm@v4
+      # SSH into EC2 and deploy
+      - name: Deploy to EC2 via SSH
+        uses: appleboy/ssh-action@v1.2.0
         with:
-          version: 'latest'
+          host: ${{ secrets.EC2_HOST }}           # e.g. 3.110.xxx.xxx
+          username: ${{ secrets.EC2_USER }}       # e.g. ubuntu, ec2-user
+          key: ${{ secrets.SSH_PRIVATE_KEY }}         # private key content
+          port: 22
+          script: |
+            set -e
 
-      # Configure kubeconfig for your cluster.
-      # You must create a GitHub secret named KUBECONFIG_CONTENT
-      # containing the base64-decoded contents of your kubeconfig file.
-      - name: Configure kubeconfig
-        run: |
-          mkdir -p ~/.kube
-          echo "${KUBECONFIG_CONTENT}" > ~/.kube/config
-        shell: bash
+            echo "Logging into Docker registry..."
+            echo "${DOCKER_PASSWORD}" | docker login -u "${DOCKER_USERNAME}" --password-stdin
+
+            IMAGE="${DOCKER_REPO}:${{ steps.image.outputs.TAG }}"
+            CONTAINER_NAME="calculator-app"
+
+            echo "Pulling image: ${IMAGE}"
+            docker pull "${IMAGE}"
+
+            echo "Stopping existing container (if any)..."
+            if [ "$(docker ps -q -f name=${CONTAINER_NAME})" ]; then
+              docker stop ${CONTAINER_NAME}
+            fi
+
+            echo "Removing old container (if any)..."
+            if [ "$(docker ps -aq -f name=${CONTAINER_NAME})" ]; then
+              docker rm ${CONTAINER_NAME}
+            fi
+
+            echo "Starting new container..."
+            docker run -d \
+              --name ${CONTAINER_NAME} \
+              -p 80:8080 \
+              "${IMAGE}"
+
         env:
-          KUBECONFIG_CONTENT: ${{ secrets.KUBECONFIG_CONTENT }}
-
-      # === Helm Deploy (equivalent to your Azure 'Helm Deploy to Minikube' script) ===
-      - name: Helm Deploy to Minikube
-        run: |
-          # Use the CI workflow run number as the image tag,
-          # analogous to $(resources.pipeline.ciPipeline.runID)
-          IMAGE_TAG=${{ github.event.workflow_run.run_number }}
-
-          echo "Deploying image: ${DOCKER_REPO}:${IMAGE_TAG}"
-          ls
-
-          helm upgrade --install calculator ./helm \
-            --set image.repository=${DOCKER_REPO} \
-            --set image.tag=${IMAGE_TAG} \
-            --namespace default \
-            --wait
-
-      # === Verify Deployment (equivalent to your Azure 'Verify Deployment' step) ===
-      - name: Verify Deployment
-        run: |
-          kubectl get pods -n default
-          kubectl get svc -n default
+          DOCKER_REPO: ${{ env.DOCKER_REPO }}
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
