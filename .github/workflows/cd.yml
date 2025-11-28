@@ -2,7 +2,7 @@ name: CD - Deploy to EC2
 
 on:
   workflow_run:
-    workflows: ["CI"]   # must match name: of your CI workflow
+    workflows: ["CI"]        # must match the name: of your CI workflow
     types:
       - completed
 
@@ -13,53 +13,59 @@ jobs:
   deploy:
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
-    environment: minikube   # or whatever env name you want
+    environment: minikube    # rename if you want a different GitHub Environment
 
     steps:
-      - name: Checkout repository (not strictly needed, but harmless)
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set image tag
+      - name: Set image tag (use CI run number)
         id: image
         run: echo "TAG=${{ github.event.workflow_run.run_number }}" >> $GITHUB_OUTPUT
 
-      # SSH into EC2 and deploy
-      - name: Deploy to EC2 via SSH
-        uses: appleboy/ssh-action@v1.2.0
+      # --- SSH Setup ---
+      - name: Set up SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
         with:
-          host: ${{ secrets.EC2_HOST }}           # e.g. 3.110.xxx.xxx
-          username: ${{ secrets.EC2_USER }}       # e.g. ubuntu, ec2-user
-          key: ${{ secrets.SSH_PRIVATE_KEY }}         # private key content
-          port: 22
-          script: |
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Add EC2 host to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Sync Helm chart to EC2
+        run: |
+          SSH_TARGET="${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}"
+          rsync -avz --exclude '.git' ./helm "${SSH_TARGET}:/tmp/deploy/"
+
+      - name: Remote Helm upgrade on EC2
+        env:
+          IMAGE_REPO: ${{ env.DOCKER_REPO }}
+          IMAGE_TAG: ${{ steps.image.outputs.TAG }}
+        run: |
+          SSH_TARGET="${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}"
+
+          ssh "${SSH_TARGET}" << EOF
             set -e
 
-            echo "Logging into Docker registry..."
-            echo "${DOCKER_PASSWORD}" | docker login -u "${DOCKER_USERNAME}" --password-stdin
+            CHART_PATH="/tmp/deploy/helm"
 
-            IMAGE="${DOCKER_REPO}:${{ steps.image.outputs.TAG }}"
-            CONTAINER_NAME="calculator-app"
+            echo "Using image: ${IMAGE_REPO}:${IMAGE_TAG}"
 
-            echo "Pulling image: ${IMAGE}"
-            docker pull "${IMAGE}"
+            helm upgrade --install calculator "\${CHART_PATH}" \
+              --set image.repository=${IMAGE_REPO} \
+              --set image.tag=${IMAGE_TAG} \
+              --namespace default \
+              --wait
 
-            echo "Stopping existing container (if any)..."
-            if [ "$(docker ps -q -f name=${CONTAINER_NAME})" ]; then
-              docker stop ${CONTAINER_NAME}
-            fi
+            echo "--- Verification ---"
+            kubectl rollout status deployment/calculator -n default --timeout=5m
+            kubectl get pods -n default
+            kubectl get svc -n default
+          EOF
 
-            echo "Removing old container (if any)..."
-            if [ "$(docker ps -aq -f name=${CONTAINER_NAME})" ]; then
-              docker rm ${CONTAINER_NAME}
-            fi
-
-            echo "Starting new container..."
-            docker run -d \
-              --name ${CONTAINER_NAME} \
-              -p 80:8080 \
-              "${IMAGE}"
-
-        env:
-          DOCKER_REPO: ${{ env.DOCKER_REPO }}
-          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+      # --- Cleanup (optional) ---
+      - name: Clean up temporary files on EC2
+        run: |
+          ssh "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" "rm -rf /tmp/deploy"
