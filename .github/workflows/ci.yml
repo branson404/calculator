@@ -74,7 +74,7 @@ jobs:
           push: true
           tags: |
             ${{ env.DOCKER_REPO }}:${{ github.run_number }}
-            ${{ env.DOCKER_REPO }}:latest   # optional convenience tag
+            ${{ env.DOCKER_REPO }}:latest
 
     outputs:
       docker_image_tag: ${{ steps.tag.outputs.value }}
