@@ -59,8 +59,6 @@ jobs:
               --namespace default \
               --wait
 
-            echo "--- Verification ---"
-            kubectl rollout status deployment/calculator -n default --timeout=5m
             kubectl get pods -n default
             kubectl get svc -n default
           EOF
