@@ -1,75 +1,71 @@
-# .github/workflows/deploy-template.yml
-name: Reusable Helm Deploy Job (via SSH)
+name: CD - Deploy to Kubernetes
 
+# === Trigger (equivalent to Azure 'resources.pipelines' with trigger: true) ===
+# This workflow runs automatically when the CI workflow succeeds.
 on:
-  workflow_call:
-    inputs:
-      environment:
-        required: true
-        type: string
-        description: 'The target environment (e.g., minikube, staging)'
-      image_tag:
-        required: true
-        type: string
-        description: 'The Docker image tag to deploy (CI commit SHA)'
-      docker_repo:
-        required: true
-        type: string
-        description: 'The Docker repository'
+  workflow_run:
+    workflows: ["CI"]   # MUST match the 'name:' of your CI workflow
+    types:
+      - completed
+
+# === Global variables (equivalent to Azure 'variables') ===
+env:
+  DOCKER_REPO: branson404/calculator
 
 jobs:
-  helm-deploy:
+  deploy:
+    # Only run if the CI workflow finished successfully
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
-    environment: ${{ inputs.environment }} # Uses GitHub Environments for approvals/protection
+
+    # GitHub environment = place to configure manual approvals / protection
+    environment: minikube
 
     steps:
-      - name: Checkout Code
+      - name: Checkout repository
         uses: actions/checkout@v4
-        
-      # --- SSH Setup ---
-      - name: Set up SSH Key
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-      - name: Add EC2 Host to Known Hosts
-        # This prevents the workflow from failing on first connection due to host key checking
-        run: ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
-        
-      # --- File Transfer ---
-      - name: Transfer Helm Chart to EC2
+      # Install kubectl (you can pin a version if you want)
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: 'latest'
+
+      # Install Helm (same as using Helm in Azure DevOps agent)
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: 'latest'
+
+      # Configure kubeconfig for your cluster.
+      # You must create a GitHub secret named KUBECONFIG_CONTENT
+      # containing the base64-decoded contents of your kubeconfig file.
+      - name: Configure kubeconfig
         run: |
-          SSH_TARGET="${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}"
-          
-          # Use rsync to transfer the Helm chart directory (assuming it's named 'helm')
-          # to a temporary location on the remote EC2 host.
-          # The -a (archive) flag is highly recommended.
-          rsync -avz --exclude '.git' helm "${SSH_TARGET}:/tmp/helm-deploy/"
-          
-      # --- Helm Deployment via SSH ---
-      - name: Execute Remote Helm Upgrade
+          mkdir -p ~/.kube
+          echo "${KUBECONFIG_CONTENT}" > ~/.kube/config
+        shell: bash
+        env:
+          KUBECONFIG_CONTENT: ${{ secrets.KUBECONFIG_CONTENT }}
+
+      # === Helm Deploy (equivalent to your Azure 'Helm Deploy to Minikube' script) ===
+      - name: Helm Deploy to Minikube
         run: |
-          SSH_TARGET="${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}"
-          TEMP_CHART_PATH="/tmp/helm-deploy/helm"
-          
-          # Execute the deployment script remotely using the transferred chart files.
-          # The Helm command uses the exact structure you specified.
-          ssh "${SSH_TARGET}" << EOF
-            echo "Starting remote Helm upgrade on Minikube..."
-            
-            # Run the helm upgrade command
-            helm upgrade --install calculator "${TEMP_CHART_PATH}" \
-              --set image.repository=${{ inputs.docker_repo }} \
-              --set image.tag=${{ inputs.image_tag }} \
-              --namespace default \
-              --wait
-              
-            echo "--- Verification ---"
-            # Verify Deployment Status
-            kubectl rollout status deployment/calculator -n default --timeout=5m
-            kubectl get pods -n default
-          EOF
-          
-      - name: Clean up temporary files on EC2
+          # Use the CI workflow run number as the image tag,
+          # analogous to $(resources.pipeline.ciPipeline.runID)
+          IMAGE_TAG=${{ github.event.workflow_run.run_number }}
+
+          echo "Deploying image: ${DOCKER_REPO}:${IMAGE_TAG}"
+          ls
+
+          helm upgrade --install calculator ./helm \
+            --set image.repository=${DOCKER_REPO} \
+            --set image.tag=${IMAGE_TAG} \
+            --namespace default \
+            --wait
+
+      # === Verify Deployment (equivalent to your Azure 'Verify Deployment' step) ===
+      - name: Verify Deployment
         run: |
-          ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "rm -rf /tmp/helm-deploy"
+          kubectl get pods -n default
+          kubectl get svc -n default
