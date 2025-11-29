@@ -9,7 +9,7 @@ on:
 jobs:
   deploy:
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
-    runs-on: vm1
+    runs-on: ec2
     environment: minikube    # rename if you want a different GitHub Environment
 
     steps:
