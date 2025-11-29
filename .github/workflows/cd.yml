@@ -6,13 +6,10 @@ on:
     types:
       - completed
 
-env:
-  DOCKER_REPO: branson404/calculator
-
 jobs:
   deploy:
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
-    runs-on: ubuntu-latest
+    runs-on: vm1
     environment: minikube    # rename if you want a different GitHub Environment
 
     steps:
@@ -23,46 +20,27 @@ jobs:
         id: image
         run: echo "TAG=${{ github.event.workflow_run.run_number }}" >> $GITHUB_OUTPUT
 
-      # --- SSH Setup ---
-      - name: Set up SSH agent
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-
-      - name: Add EC2 host to known_hosts
-        run: |
-          mkdir -p ~/.ssh
-          ssh-keyscan -H "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts
-
-      - name: Sync Helm chart to EC2
-        run: |
-          SSH_TARGET="${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}"
-          rsync -avz --exclude '.git' ./helm "${SSH_TARGET}:/tmp/deploy/"
-
-      - name: Remote Helm upgrade on EC2
+      - name: Helm upgrade
         env:
-          IMAGE_REPO: ${{ env.DOCKER_REPO }}
+          DOCKER_REPO: ${{ env.DOCKER_REPO }}
           IMAGE_TAG: ${{ steps.image.outputs.TAG }}
         run: |
-          SSH_TARGET="${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}"
+          set -e
 
-          ssh "${SSH_TARGET}" << EOF
-            set -e
+          CHART_PATH="./helm"
 
-            CHART_PATH="/tmp/deploy/helm"
+          echo "Using image: ${IMAGE_REPO}:${IMAGE_TAG}"
+          ls -R
 
-            echo "Using image: ${IMAGE_REPO}:${IMAGE_TAG}"
+          helm upgrade --install calculator "${CHART_PATH}" \
+            --set image.repository=${DOCKER_REPO} \
+            --set image.tag=${IMAGE_TAG} \
+            --namespace default \
+            --create-namespace \
+            --wait
 
-            helm upgrade --install calculator "\${CHART_PATH}" \
-              --set image.repository=${IMAGE_REPO} \
-              --set image.tag=${IMAGE_TAG} \
-              --namespace default \
-              --wait
-
-            kubectl get pods -n default
-            kubectl get svc -n default
-          EOF
-
+          kubectl get pods -n default
+          kubectl get svc -n default
       # --- Cleanup (optional) ---
       - name: Clean up temporary files on EC2
         run: |
