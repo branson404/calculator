@@ -1,0 +1,47 @@
+name: CD - Reusable Workflow
+
+on:
+  workflow_call:
+    inputs:
+      runNumber:
+        required: true
+        type: string
+      dockerRepo:
+        required: true
+        type: string
+
+jobs:
+  deploy:
+    runs-on: ec2              
+    environment: minikube     
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set image tag
+        id: image
+        run: echo "TAG=${{ inputs.runNumber }}" >> $GITHUB_OUTPUT
+
+      - name: Helm upgrade
+        env:
+          DOCKER_REPO: ${{ inputs.dockerRepo }}
+          IMAGE_TAG: ${{ steps.image.outputs.TAG }}
+        run: |
+          set -e
+
+          CHART_PATH="./helm"  
+          
+          echo "Using image: ${DOCKER_REPO}:${IMAGE_TAG}"
+          echo "Chart path: ${CHART_PATH}"
+          ls -R
+
+          helm upgrade --install calculator "${CHART_PATH}" \
+            --set image.repository=${DOCKER_REPO} \
+            --set image.tag=${IMAGE_TAG} \
+            --namespace default \
+            --create-namespace \
+            --wait
+
+          kubectl get pods -n default
+          kubectl get svc -n default
