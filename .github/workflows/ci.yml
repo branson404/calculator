@@ -85,4 +85,4 @@ jobs:
     uses: branson404/calculator/.github/workflows/cd-ru.yml@helm-actions
     with:
       runNumber: ${{ github.run_number }}
-      dockerRepo: ${{ env.DOCKER_REPO }}
+      dockerRepo: branson404/calculator
